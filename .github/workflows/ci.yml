@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y valgrind clang
+      - name: Configure
+        run: |
+          if [ "${{ matrix.compiler }}" = clang ]; then export CC=clang CXX=clang++; fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+      - name: Build (warnings are errors)
+        run: cmake --build build -j
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Valgrind memory check
+        run: |
+          valgrind --error-exitcode=1 --leak-check=full build/test_core
+          valgrind --error-exitcode=1 --leak-check=full build/test_navtrack
+      - name: Benchmark
+        run: build/navtrack benchmark
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build with ASan + UBSan
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DNAVTRACK_SANITIZE=ON
+          cmake --build build -j
+      - name: Tests under sanitizers
+        run: ctest --test-dir build --output-on-failure

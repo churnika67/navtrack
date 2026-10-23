@@ -1,0 +1,4 @@
+build/
+*.nmea
+*.gpx
+compile_commands.json
